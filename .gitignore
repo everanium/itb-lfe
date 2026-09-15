@@ -1,0 +1,16 @@
+# rebar3 build output
+_build/
+rebar.lock
+.rebar3/
+rebar3.crashdump
+
+# Compiled BEAM artefacts
+ebin/
+*.beam
+
+# Ad-hoc bench / eitb compilation output
+bench/*.beam
+eitb/*.beam
+
+# Erlang crash dumps
+erl_crash.dump

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# eitb -- launcher for the LFE binding's command-line demonstrator.
+# Compiles eitb/itb-eitb.lfe with the hex-fetched LFE compiler (when
+# the source is newer than the cached beam) and invokes
+# itb-eitb:main/1 with the CLI arguments. The compiled binding
+# (./build.sh in bindings/lfe) is resolved relative to this script's
+# location.
+#
+# Usage:
+#   eitb version
+#   eitb profiles
+#   eitb inspect <blob-hex>
+#   eitb encrypt <profile> <in-file> <out-file>
+#   eitb decrypt <profile> <blob-hex> <in-file> <out-file>
+
+set -eu
+set -o pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$DIR/.."
+
+LFE_EBIN="$ROOT/_build/default/lib/lfe/ebin"
+ITB_EBIN="$ROOT/_build/default/checkouts/libitb3/ebin"
+APP_EBIN="$ROOT/_build/default/lib/libitb3_lfe/ebin"
+
+for ebin in "$LFE_EBIN" "$ITB_EBIN" "$APP_EBIN"; do
+    if [ ! -d "$ebin" ]; then
+        echo "eitb: binding not built ($ebin missing); run ./build.sh first" >&2
+        exit 1
+    fi
+done
+
+# Rebuild the demonstrator beam when stale (or absent).
+if [ "$DIR/itb-eitb.lfe" -nt "$DIR/itb-eitb.beam" ]; then
+    erl -noshell -pa "$LFE_EBIN" -eval \
+        "{ok, _} = lfe_comp:file(\"$DIR/itb-eitb.lfe\", [{outdir, \"$DIR\"}, report])." \
+        -run init stop
+fi
+
+exec erl -noshell -pa "$ITB_EBIN" -pa "$APP_EBIN" -pa "$DIR" \
+    -run itb-eitb main "$@"

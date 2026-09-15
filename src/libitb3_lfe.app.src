@@ -1,0 +1,11 @@
+{application, libitb3_lfe, [
+    {description,
+     "ITB Symmetric Cipher Construction with Ambiguity-Based Security - LFE"},
+    {vsn, "0.5.1"},
+    {registered, []},
+    {applications, [kernel, stdlib, libitb3]},
+    {env, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [{"GitHub", "https://github.com/everanium/itb"},
+             {"Issues", "https://github.com/everanium/itb/issues"}]}
+]}.
