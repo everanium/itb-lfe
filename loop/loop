@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# Launcher for the loop stress harness of the LFE binding: starts the
+# emulator on the compiled binding and the compiled utility and hands
+# it every argument unchanged. build.sh compiles both; this script
+# builds nothing.
+#
+# The emulator is started with the break handler off and the utility
+# is run in the background rather than exec'd, so that an interrupt
+# can be translated here into the termination signal the utility does
+# receive: the emulator owns SIGINT below the signal server and never
+# lets BEAM code see it, while SIGTERM reaches the utility's own
+# handler and starts its graceful stop. The child's exit status is
+# passed through unchanged.
+#
+# Usage:
+#   ./loop/loop --duration 2m --shape both
+
+set -eu
+set -o pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$HERE/.."
+
+LFE_EBIN="$ROOT/_build/default/lib/lfe/ebin"
+ITB_EBIN="$ROOT/_build/default/checkouts/libitb3/ebin"
+APP_EBIN="$ROOT/_build/default/lib/libitb3_lfe/ebin"
+
+for ebin in "$LFE_EBIN" "$ITB_EBIN" "$APP_EBIN"; do
+    if [ ! -d "$ebin" ]; then
+        echo "loop: binding not built ($ebin missing); run ./build.sh first" >&2
+        exit 1
+    fi
+done
+if [ ! -f "$HERE/loop-main.beam" ]; then
+    echo "loop: utility not compiled, run ./build.sh first: $HERE" >&2
+    exit 1
+fi
+
+# -noshell keeps the emulator's banner and line editor off stdout and
+# -boot no_dot_erlang skips the user's ~/.erlang, so the utility owns
+# every byte the process prints; +Bi leaves the interrupt to the trap
+# below. -extra hands the whole command line through as plain
+# arguments.
+erl +Bi -noshell -boot no_dot_erlang \
+    -pa "$LFE_EBIN" -pa "$ITB_EBIN" -pa "$APP_EBIN" -pa "$HERE" \
+    -s loop-main start -extra "$@" &
+child=$!
+
+trap 'kill -TERM "$child" 2>/dev/null || true' INT TERM
+
+set +e
+wait "$child"
+rc=$?
+# A trapped signal makes the first wait return 128 + signal number
+# rather than the child's status; waiting again yields the status the
+# child actually exited with.
+if [ "$rc" -gt 128 ]; then
+    wait "$child"
+    rc=$?
+fi
+exit "$rc"

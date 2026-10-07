@@ -1,12 +1,12 @@
-;;;; itb-eitb — command-line demonstrator for the ITB LFE binding,
+;;;; Command-line demonstrator for the ITB LFE binding,
 ;;;; ported from the Erlang binding's eitb escript.
 ;;;;
 ;;;; Subcommands:
 ;;;;
-;;;;   eitb version                                 library + binding versions
-;;;;   eitb profiles                                registered profile catalogue
-;;;;   eitb inspect <blob-hex>                      profile record of a blob
-;;;;   eitb encrypt <profile> <in-file> <out-file>  Single Message encrypt
+;;;;   eitb version
+;;;;   eitb profiles
+;;;;   eitb inspect <blob-hex>
+;;;;   eitb encrypt <profile> <in-file> <out-file>
 ;;;;   eitb decrypt <profile> <blob-hex> <in-file> <out-file>
 ;;;;
 ;;;; `encrypt` prints the session blob (save/1) to stderr as hex; feed
@@ -15,6 +15,7 @@
 ;;;; Message versus streaming). `profiles` lists the registered
 ;;;; profile catalogue one name per line; the profiles that carry a
 ;;;; cipher surface are the ones `encrypt` / `decrypt` accept.
+;;;; `inspect` prints the profile record a blob carries, as JSON.
 ;;;;
 ;;;; The eitb bash launcher compiles this module with the hex-fetched
 ;;;; LFE compiler and invokes main/1 with the CLI argument list; the
@@ -74,7 +75,7 @@
 
 ;; Profiles whose canonical name begins with "streaming-" route
 ;; through the streaming session pair instead of the Single Message
-;; pair. A one-shot Streaming call opens a session, feeds the whole
+;; pair. A one-shot streaming call opens a session, feeds the whole
 ;; payload, signals end, and drains until finished.
 (defun streaming-profile? (profile)
   (lists:prefix "streaming-" profile))

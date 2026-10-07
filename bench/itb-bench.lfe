@@ -1,4 +1,4 @@
-;;;; itb-bench — Message + Stream throughput micro-benches for the
+;;;; Message + Stream throughput micro-benches for the
 ;;;; LFE binding at 1 MiB / 16 MiB / 64 MiB, ported from the Erlang
 ;;;; binding's bench_message.erl / bench_stream.erl.
 ;;;;
@@ -91,7 +91,7 @@
     (let ((`ok (itb3-lfe:free pipe)))
       'ok)))
 
-;; Whole-buffer stream: one FFI round trip through
+;; One-shot stream: one FFI round trip through
 ;; encrypt-stream-one-shot / decrypt-stream-one-shot per iteration.
 (defun run-stream-one-shot ()
   (cap-go-runtime)
@@ -119,9 +119,9 @@
     (let ((`ok (itb3-lfe:free pipe)))
       'ok)))
 
-;; Bench-scale allocation churn leaks Go scratch heap unboundedly
-;; without a soft memory cap + aggressive GC; the return values
-;; report the previous settings, not an error.
+;; Bench-scale allocation churn grows the Go scratch heap
+;; unboundedly without a soft memory cap + aggressive GC; the
+;; return values report the previous settings, not an error.
 (defun cap-go-runtime ()
   (itb3-lfe:set-memory-limit (bsl 4 30)) ;; 4 GiB soft cap
   (itb3-lfe:set-gc-percent 100)           ;; balanced GC
@@ -179,11 +179,8 @@
 ;; consumed, and drain-ready between feed slices can catch and drop
 ;; those chunks before drain-collect at end sees them.
 ;;
-;; Go core wrapper-nonce batching fix (streams.go +
-;; wrapper.NewWrapWriter) closes the earlier wrapper-nonce
-;; split-write race so a single-chunk pump-all with plain feed would
-;; now produce a wire whose nonce is not stranded, but drain-ready's
-;; byte-dropping behaviour remains fundamentally incompatible with
+;; Single-chunk plain feed produces a wire whose nonce is not stranded,
+;; but drain-ready's byte-dropping behaviour remains incompatible with
 ;; wire collection across chunk boundaries.
 (defun pump-all (pipe plain)
   (let* ((`#(ok ,stream) (itb3-lfe:encrypt-stream pipe))

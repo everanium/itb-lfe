@@ -1,4 +1,4 @@
-;;;; itb-lfe-tests — EUnit suite for the LFE binding, written with
+;;;; EUnit suite for the LFE binding, written with
 ;;;; the ltest macros. Covers: version, the hash primitive roster
 ;;;; (canonical registry order), the Single Message round trip, the
 ;;;; incremental stream pump round trip, runtime knobs, profile
@@ -23,6 +23,10 @@
 (deftest version
   (let ((`#(ok ,version) (itb3-lfe:version)))
     (is (> (byte_size version) 0))))
+
+(deftest drbg-auto-tier
+  (let ((`#(ok ,tier) (itb3-lfe:drbg-auto-tier)))
+    (is (lists:member tier '(#"aes-256-ctr" #"chacha20")))))
 
 (deftest runtime-knobs-query-without-changing
   ;; Negative values query without changing; the return is the
@@ -223,7 +227,7 @@
       (is (not (maps:is_key #"nonce_bits" looked)))
       (is (not (maps:is_key #"barrier_fill" looked)))
       (is-equal looked
-                (maps:without (list #"nonce_bits" #"barrier_fill") record)))
+                (maps:without (list #"nonce_bits" #"barrier_fill" #"container_mode") record)))
     (let ((`#(error #(bad_input ,_)) (itb3-lfe:inspect #"not a blob")))
       'ok)
     (let ((`#(error #(unknown_profile ,_)) (itb3-lfe:lookup #"no-such-profile")))
@@ -370,3 +374,174 @@
         (byte (binary:at wire pos))
         (tail (binary:part wire (+ pos 1) (- (byte_size wire) pos 1))))
     (iolist_to_binary (list head (bxor byte 1) tail))))
+
+;;; ------------------------------------------------------------------
+;;; Runtime shaping knobs and the hash-registry enumeration
+;;;
+;;; Every entry delegates to the Erlang binding's itb3 module —
+;;; itb3:set_gomaxprocs/1, itb3:write_heap_profile/1,
+;;; itb3:pool_stats_len/0, itb3:pool_stats/0, itb3:hash_names/0.
+;;; ------------------------------------------------------------------
+
+(deftest set-gomaxprocs
+  ;; Zero or a negative value queries without changing, so the query
+  ;; is repeatable and the round trip restores what was in force.
+  (let ((before (itb3-lfe:set-gomaxprocs 0)))
+    (is (> before 0))
+    (is-equal before (itb3-lfe:set-gomaxprocs 0))
+    (is-equal before (itb3-lfe:set-gomaxprocs 2))
+    (is-equal 2 (itb3-lfe:set-gomaxprocs 0))
+    (is-equal 2 (itb3-lfe:set-gomaxprocs before))
+    (is-equal before (itb3-lfe:set-gomaxprocs 0))))
+
+(deftest write-heap-profile
+  (let ((path (filename:join (loop-test-dir) "heap.pprof")))
+    (is-equal 'ok (itb3-lfe:write-heap-profile path))
+    (let ((`#(ok ,info) (file:read_file_info path)))
+      (is (> (element 2 info) 0)))
+    (is-equal 'ok (file:delete path)))
+  ;; A path that cannot be created is rejected, and the diagnostic the
+  ;; library composed comes back with the status atom.
+  (let ((`#(error #(bad_input ,detail))
+         (itb3-lfe:write-heap-profile
+          (filename:join (list (loop-test-dir) "no-such-directory" "heap.pprof")))))
+    (is (> (byte_size detail) 0))))
+
+(defun loop-test-dir ()
+  (let ((dir (filename:join "/tmp" "itb-lfe-runtime-tests")))
+    (filelib:ensure_path dir)
+    dir))
+
+(deftest pool-stats
+  ;; The slot count is read from the library, and the vector it fills
+  ;; matches that count; slot 0 carries the tier count and the layout
+  ;; 1 + 5*T + 8 follows from it.
+  (let ((len (itb3-lfe:pool-stats-len)))
+    (is (> len 0))
+    (let ((`#(ok ,slots) (itb3-lfe:pool-stats)))
+      (is-equal len (length slots))
+      (let ((tiers (car slots)))
+        (is (> tiers 0))
+        (is-equal len (+ 1 (* 5 tiers) 8)))
+      (is (lists:all (lambda (v) (andalso (is_integer v) (>= v 0))) slots)))))
+
+(deftestgen pool-stats-monotonic
+  ;; The counters are monotonic totals since library load, so a cipher
+  ;; call between two snapshots can only move them upward.
+  (tuple 'timeout 120
+    (lambda ()
+      (let ((`#(ok ,before) (itb3-lfe:pool-stats))
+            (`#(ok ,pipe) (itb3-lfe:init #"singlemsg-triple-mac-v1")))
+        (let ((`#(ok ,_wire) (itb3-lfe:encrypt-message
+                              pipe (binary:copy #"x" 65536))))
+          (is-equal 'ok (itb3-lfe:free pipe)))
+        (let ((`#(ok ,later) (itb3-lfe:pool-stats)))
+          (is-equal (length before) (length later))
+          (is (lists:all (lambda (p) (>= (element 2 p) (element 1 p)))
+                         (lists:zip before later))))))))
+
+(deftestgen hash-names
+  ;; Every registry name is accepted as an inner hash, which is what
+  ;; makes the enumeration usable for validating a primitive name.
+  (tuple 'timeout 300
+    (lambda ()
+      (let ((names (itb3-lfe:hash-names)))
+        (is (> (length names) 0))
+        (is (lists:all #'is_binary/1 names))
+        (is (lists:member #"areion512" names))
+        (is-equal (lists:usort names) (lists:sort names))
+        (lists:foreach
+         (lambda (name)
+           (let ((`#(ok ,pipe) (itb3-lfe:init #"singlemsg-triple-nomac-v1"
+                                             (map #"innerHash" name))))
+             (is-equal 'ok (itb3-lfe:free pipe))))
+         names)))))
+
+(deftest hash-names-rejects-unregistered
+  (is (not (lists:member #"no-such-primitive" (itb3-lfe:hash-names))))
+  (let ((`#(error #(,_ ,_)) (itb3-lfe:init #"singlemsg-triple-nomac-v1"
+                                          (map #"innerHash" #"no-such-primitive"))))
+    'ok))
+
+;; Every status atom an error tuple can carry resolves to the numeric
+;; code the C ABI assigns it, and an atom outside the table resolves
+;; to the internal-error code.
+(deftest status-code
+  (is-equal 0 (itb3-lfe:status-code 'ok))
+  (is-equal 4 (itb3-lfe:status-code 'bad_input))
+  (is-equal 10 (itb3-lfe:status-code 'mac_failure))
+  (is-equal 13 (itb3-lfe:status-code 'unknown_profile))
+  (is-equal 26 (itb3-lfe:status-code 'profile_exists))
+  (is-equal 99 (itb3-lfe:status-code 'internal))
+  (is-equal 99 (itb3-lfe:status-code 'no_such_status))
+  ;; The codes are distinct, so a diagnostic naming one names it
+  ;; unambiguously.
+  (let* ((known '(ok bad_hash bad_key_bits bad_handle bad_input
+                  buffer_too_small encrypt_failed decrypt_failed
+                  seed_width_mix bad_mac mac_failure blob_malformed_recipe
+                  recipe_primitive_unknown unknown_profile blob_mode_mismatch
+                  blob_malformed blob_version_too_new blob_too_many_opts
+                  stream_truncated stream_after_final triple_closed
+                  profile_exists))
+         (codes (lists:map #'itb3-lfe:status-code/1 known)))
+    (is-equal (length codes) (length (lists:usort codes)))))
+
+;; The atom a failing call hands back resolves through the same
+;; accessor, so the pair (atom code) is attributable to one call.
+(deftest status-code-of-failing-call
+  (let ((`#(error #(,status ,_detail)) (itb3-lfe:lookup #"no-such-profile")))
+    (is-equal 'unknown_profile status)
+    (is-equal 13 (itb3-lfe:status-code status))))
+
+;;; ------------------------------------------------------------------
+;;; DRBG fill primitive
+;;; ------------------------------------------------------------------
+
+;; The drbg opts key selects the fill primitive: the session round
+;; trips through a loaded blob and inspect reports the key.
+(deftestgen drbg-round-trip
+  (tuple 'timeout 120
+    (lambda ()
+      (lists:foreach
+        (lambda (drbg)
+          (let* ((`#(ok ,sender) (itb3-lfe:init #"singlemsg-triple-mac-v1"
+                                                (map #"drbg" drbg)))
+                 (`#(ok ,blob) (itb3-lfe:save sender))
+                 (`#(ok ,receiver) (itb3-lfe:load blob))
+                 (`#(ok ,wire) (itb3-lfe:encrypt-message receiver #"drbg round-trip payload"))
+                 (`#(ok ,record) (itb3-lfe:inspect blob)))
+            (is-equal #(ok #"drbg round-trip payload")
+                      (itb3-lfe:decrypt-message sender wire))
+            (is-equal drbg (maps:get #"drbg" record))
+            (is-equal 'ok (itb3-lfe:free receiver))
+            (is-equal 'ok (itb3-lfe:free sender))))
+        (list #"csprng" #"aesitb128")))))
+
+(deftest drbg-unknown-name
+  (let ((`#(error #(recipe_primitive_unknown ,detail))
+          (itb3-lfe:init #"singlemsg-triple-mac-v1" (map #"drbg" #"nope"))))
+    (is (=/= 'nomatch (binary:match detail #"nope")))))
+
+(deftest drbg-absent-by-default
+  (let* ((`#(ok ,pipe) (itb3-lfe:init #"singlemsg-triple-mac-v1"))
+         (`#(ok ,blob) (itb3-lfe:save pipe)))
+    (is-equal 'ok (itb3-lfe:free pipe))
+    (let ((`#(ok ,record) (itb3-lfe:inspect blob))
+          (`#(ok ,looked) (itb3-lfe:lookup #"singlemsg-triple-mac-v1")))
+      (is (not (maps:is_key #"drbg" record)))
+      (is (not (maps:is_key #"drbg" looked))))))
+
+;; An inspected record with the inspection-only fields dropped
+;; re-registers and keeps the drbg key.
+(deftest drbg-register-copy-keeps-key
+  (let* ((`#(ok ,pipe) (itb3-lfe:init #"singlemsg-triple-mac-v1"
+                                      (map #"drbg" #"csprng")))
+         (`#(ok ,blob) (itb3-lfe:save pipe)))
+    (is-equal 'ok (itb3-lfe:free pipe))
+    (let* ((`#(ok ,record) (itb3-lfe:inspect blob))
+           (copy (maps:without (list #"name" #"nonce_bits" #"barrier_fill"
+                                     #"container_mode")
+                               record)))
+      (is-equal 'ok (itb3-lfe:register #"lfe-binding-test-drbg-copy" copy))
+      (let ((`#(ok ,looked) (itb3-lfe:lookup #"lfe-binding-test-drbg-copy")))
+        (is-equal #"csprng" (maps:get #"drbg" looked))))))

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# run_tests.sh -- one-step test runner for the LFE binding. Builds
-# libitb3.so + the C binding archive + the Erlang backend + the LFE
-# application via build.sh, then invokes `rebar3 eunit` (the test
-# module is registered in rebar.config's eunit_tests — EUnit cannot
+# One-step test runner for the LFE binding. Builds libitb3.so + the
+# C binding archive + the Erlang backend + the LFE application via
+# build.sh, then invokes `rebar3 eunit` (the test module is
+# registered in rebar.config's eunit_tests — EUnit cannot
 # auto-discover .lfe sources). Forwards any positional arguments
 # through to rebar3.
 #

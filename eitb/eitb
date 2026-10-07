@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 #
-# eitb -- launcher for the LFE binding's command-line demonstrator.
-# Compiles eitb/itb-eitb.lfe with the hex-fetched LFE compiler (when
-# the source is newer than the cached beam) and invokes
-# itb-eitb:main/1 with the CLI arguments. The compiled binding
-# (./build.sh in bindings/lfe) is resolved relative to this script's
-# location.
+# Launcher for the LFE binding's command-line demonstrator. Compiles
+# eitb/itb-eitb.lfe with the hex-fetched LFE compiler (when the
+# source is newer than the cached beam) and invokes itb-eitb:main/1
+# with the CLI arguments. The compiled binding (./build.sh in
+# bindings/lfe) is resolved relative to this script's location.
 #
 # Usage:
 #   eitb version

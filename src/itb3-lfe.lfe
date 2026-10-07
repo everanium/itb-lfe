@@ -1,4 +1,4 @@
-;;;; itb3-lfe — public API of the ITB LFE binding.
+;;;; Public API of the ITB LFE binding.
 ;;;;
 ;;;; Thin proxy over the ITB Erlang binding's `itb3` module via native
 ;;;; BEAM bytecode interop — the LFE layer adds no FFI hop of its
@@ -64,11 +64,18 @@
     (register 2)
     (lookup 1)
     (profiles 0)
+    (hash-names 0)
     ;; Runtime + diagnostics
     (version 0)
+    (drbg-auto-tier 0)
     (last-error 0)
+    (status-code 1)
     (set-memory-limit 1)
-    (set-gc-percent 1)))
+    (set-gc-percent 1)
+    (set-gomaxprocs 1)
+    (write-heap-profile 1)
+    (pool-stats-len 0)
+    (pool-stats 0)))
 
 ;;; ------------------------------------------------------------------
 ;;; Pipeline lifecycle
@@ -238,6 +245,13 @@
   "The sorted list of every registered profile name."
   (itb3:profiles))
 
+(defun hash-names ()
+  "The shipped hash-primitive registry in canonical order. These are
+  the names init/2 accepts under the `innerHash` opts key, so a caller
+  validating a primitive name reads it from here rather than carrying
+  a list of its own."
+  (itb3:hash_names))
+
 ;;; ------------------------------------------------------------------
 ;;; Runtime + diagnostics
 ;;; ------------------------------------------------------------------
@@ -246,12 +260,26 @@
   "The libitb3 library version string (e.g. #\"0.5.1\")."
   (itb3:version))
 
+(defun drbg-auto-tier ()
+  "The fill cipher the auto DRBG tier selected on this host
+  (#\"aes-256-ctr\" or #\"chacha20\"): the tier a Pipeline uses when
+  its drbg option is empty, resolved per host and recorded in no blob."
+  (itb3:drbg_auto_tier))
+
 (defun last-error ()
   "The Go-side diagnostic recorded by the most recent failing libitb3
   call (process-global last-write-wins; #\"\" when none). The error
   tuples already carry this detail — direct use is for ad-hoc
   debugging only."
   (itb3:last_error))
+
+(defun status-code (status)
+  "The numeric libitb3 status code behind a status atom, mirroring the
+  C ABI enum. The error tuples carry the atom, which is what LFE code
+  matches on; the number is what a diagnostic quotes when it has to
+  name the code the library itself uses. An atom outside the table is
+  the internal-error code."
+  (itb3:status_code status))
 
 (defun set-memory-limit (bytes)
   "Sets the Go runtime's soft heap limit in bytes; returns the
@@ -262,3 +290,30 @@
   "Sets the Go GC trigger percentage; returns the previous value. A
   negative value queries without changing."
   (itb3:set_gc_percent pct))
+
+(defun set-gomaxprocs (n)
+  "Sets the Go runtime's GOMAXPROCS; returns the previous value. Zero
+  or a negative value queries without changing."
+  (itb3:set_gomaxprocs n))
+
+(defun write-heap-profile (path)
+  "Writes the Go runtime's heap profile (pprof format) to path after
+  one forced garbage collection. An empty path falls back to the
+  ITB_MEMPROFILE environment variable; a path that is still empty, or
+  a file-system failure, is `#(error #(bad_input _))`."
+  (itb3:write_heap_profile path))
+
+(defun pool-stats-len ()
+  "Number of counter slots pool-stats/0 returns. Size a reader from
+  this call, never from a constant."
+  (itb3:pool_stats_len))
+
+(defun pool-stats ()
+  "The library's pool hit / miss counters in slot order, as one list
+  of monotonically increasing totals since library load. Slot 0
+  carries the hash-array tier count T; tier I occupies the five slots
+  at 1 + 5*I (starter width, get, new, regrow, new_bytes); the scratch
+  byte pool and the parallax chunk pool occupy the eight slots at
+  1 + 5*T. Differencing two snapshots gives the figures of one
+  measured window."
+  (itb3:pool_stats))

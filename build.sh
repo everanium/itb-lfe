@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# build.sh -- one-step build for the LFE binding. Chains the Erlang
-# binding's build.sh (libitb3.so + the C binding's static archive +
-# the NIF shim) and then compiles the rebar3 project plus the eitb
-# demonstrator; rebar3 rebuilds the Erlang application as a checkout
-# dependency (_checkouts/libitb3 -> ../erlang). Prerequisites (Go, a
-# C11 compiler, GNU make, Erlang/OTP 27+, rebar3) must be installed
-# separately; the LFE compiler arrives as a hex dependency, so no
-# system LFE install is required. See README.md "Prerequisites".
+# One-step build for the LFE binding. Chains the Erlang binding's
+# build.sh (libitb3.so + the C binding's static archive + the NIF shim)
+# and then compiles the rebar3 project plus the eitb demonstrator and
+# the loop stress harness;
+# rebar3 rebuilds the Erlang application as a checkout dependency
+# (_checkouts/libitb3 -> ../erlang). Prerequisites (Go, a C11 compiler,
+# GNU make, Erlang/OTP 27+, rebar3) must be installed separately; the
+# LFE compiler arrives as a hex dependency, so no system LFE install is
+# required. See README.md "Prerequisites".
 #
 # The build starts by removing every artefact this binding owns, so no
 # output of an earlier build can survive into this one and mask a
@@ -58,6 +59,7 @@ ARTEFACTS=(
     '*.beam'
     'bench/*.beam'
     'eitb/*.beam'
+    'loop/*.beam'
 )
 
 # Containment is checked against the physical path, so the candidate
@@ -127,5 +129,16 @@ erl -noshell -pa "$SCRIPT_DIR/_build/default/lib/lfe/ebin" -eval \
 ITB_LIBITB3_PATH="$REPO_ROOT/dist/linux-amd64/libitb3.so" \
 LD_LIBRARY_PATH="$REPO_ROOT/dist/linux-amd64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     ./eitb/eitb version
+
+# The loop stress harness is LFE source outside the rebar3 tree too,
+# and compiles with warnings fatal so a warning there fails the build.
+echo "==> compiling loop utility"
+erl -noshell -pa "$SCRIPT_DIR/_build/default/lib/lfe/ebin" \
+    -pa "$SCRIPT_DIR/_build/default/checkouts/libitb3/ebin" \
+    -pa "$SCRIPT_DIR/_build/default/lib/libitb3_lfe/ebin" -eval \
+    "[{ok, _} = lfe_comp:file(F, [{outdir, \"$SCRIPT_DIR/loop\"}, report,
+                                 warnings_as_errors])
+      || F <- filelib:wildcard(\"$SCRIPT_DIR/loop/*.lfe\")]." \
+    -run init stop
 
 echo "==> ready: ./run_tests.sh"
