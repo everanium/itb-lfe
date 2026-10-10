@@ -1,7 +1,7 @@
 {application, libitb3_lfe, [
     {description,
      "ITB Symmetric Cipher Construction with Ambiguity-Based Security - LFE"},
-    {vsn, "0.5.1"},
+    {vsn, "0.5.5"},
     {registered, []},
     {applications, [kernel, stdlib, libitb3]},
     {env, []},

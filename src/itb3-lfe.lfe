@@ -257,7 +257,7 @@
 ;;; ------------------------------------------------------------------
 
 (defun version ()
-  "The libitb3 library version string (e.g. #\"0.5.1\")."
+  "The libitb3 library version string (e.g. #\"0.5.5\")."
   (itb3:version))
 
 (defun drbg-auto-tier ()
