@@ -540,7 +540,8 @@
 ;; blob back, and the bytes are the ones Init produced. Later blob
 ;; reopens use the retained blob; save is never called again.
 (defun build-pipeline (cfg profile)
-  (let ((base (list (tuple 'innerHash (maps:get 'hash cfg))
+  (let ((base (list (tuple 'mode (integer_to_list (maps:get 'blob-mode cfg)))
+                    (tuple 'innerHash (maps:get 'hash cfg))
                     (tuple 'macName (maps:get 'mac cfg))
                     (tuple 'withParallax (on-true-false (maps:get 'parallax cfg)))
                     (tuple 'withWrapper (on-true-false (maps:get 'wrapper cfg)))
@@ -571,45 +572,8 @@
              (itb3-lfe:free pipe)
              'error)
             (`#(ok ,blob)
-             (apply-blob-mode (maps:get 'blob-mode cfg) profile pipe blob)))))))))
-
-;; The sizing mode is not an opts knob: under --blob-mode 2 the Init
-;; blob is edited and the pipeline reopened from it, so the retained
-;; blob (the one blob-cycle reopens from) carries the edited mode.
-(defun apply-blob-mode
-  ((1 profile pipe blob)
-   (log-pipeline-initialised profile blob)
-   `#(ok ,pipe ,blob))
-  ((mode profile pipe blob)
-   (itb3-lfe:free pipe)
-   (case (edit-inner-blob-mode blob mode)
-     (`#(error ,detail)
-      (err "rewrite blob mode: ~ts" (list detail))
-      'error)
-     (`#(ok ,edited)
-      (case (itb3-lfe:load edited)
-        (`#(error #(,status ,detail))
-         (err "reload Mode 2 blob: ~s" (list (status-text status detail)))
-         'error)
-        (`#(ok ,reloaded)
-         (log-pipeline-initialised profile edited)
-         `#(ok ,reloaded ,edited)))))))
-
-;; Sets the inner blob's integer "mode" (1 = per-region, 2 =
-;; per-container) of a session blob through the OTP json module. The
-;; profile record "p" carries its own string "mode"; the target is the
-;; one under "ib". Integers and strings round-trip unchanged; only the
-;; key order may differ.
-(defun edit-inner-blob-mode (blob mode)
-  (try
-    (case (json:decode blob)
-      ((= (map #"ib" (= (map #"mode" m) inner)) session) (when (is_integer m))
-       `#(ok ,(iolist_to_binary
-               (json:encode (maps:put #"ib" (maps:put #"mode" mode inner) session)))))
-      (_ #(error "inner blob mode field not found")))
-    (catch
-      ((tuple 'error reason _)
-       `#(error ,(io_lib:format "~p" (list reason)))))))
+             (log-pipeline-initialised profile blob)
+             `#(ok ,pipe ,blob)))))))))
 
 (defun on-true-false (b) (if b "true" "false"))
 

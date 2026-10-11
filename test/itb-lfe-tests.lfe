@@ -545,3 +545,20 @@
       (is-equal 'ok (itb3-lfe:register #"lfe-binding-test-drbg-copy" copy))
       (let ((`#(ok ,looked) (itb3-lfe:lookup #"lfe-binding-test-drbg-copy")))
         (is-equal #"csprng" (maps:get #"drbg" looked))))))
+
+;;; ------------------------------------------------------------------
+;;; Container mode option
+;;; ------------------------------------------------------------------
+
+(deftest container-mode-opts
+  (let* ((`#(ok ,p1) (itb3-lfe:init #"singlemsg-triple-mac-v1" (map #"mode" 1)))
+         (`#(ok ,p2) (itb3-lfe:init #"singlemsg-triple-mac-v1" (map #"mode" 2)))
+         (`#(ok ,b1) (itb3-lfe:save p1))
+         (`#(ok ,b2) (itb3-lfe:save p2)))
+    (is-equal 'ok (itb3-lfe:free p1))
+    (is-equal 'ok (itb3-lfe:free p2))
+    (let ((`#(ok ,rec1) (itb3-lfe:inspect b1))
+          (`#(ok ,rec2) (itb3-lfe:inspect b2)))
+      (is-equal 1 (maps:get #"container_mode" rec1))
+      (is-equal 2 (maps:get #"container_mode" rec2)))))
+
