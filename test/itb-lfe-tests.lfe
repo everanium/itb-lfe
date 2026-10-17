@@ -55,6 +55,31 @@
           (is-equal 'ok (itb3-lfe:free receiver))
           (is-equal 'ok (itb3-lfe:free sender)))))))
 
+(deftestgen init-keys-round-trip
+  (tuple 'timeout 120
+    (lambda ()
+      (let* ((masters (lists:map (lambda (i) (binary:copy (binary ((* #x11 i))) 32))
+                                 (lists:seq 1 8)))
+             (`#(ok ,p1) (itb3-lfe:init-keys #"singlemsg-triple-mac-v1" masters))
+             (`#(ok ,p2) (itb3-lfe:init-keys #"singlemsg-triple-mac-v1" (map) masters))
+             (`#(ok ,b1) (itb3-lfe:save p1))
+             (`#(ok ,b2) (itb3-lfe:save p2)))
+        (is-equal b1 b2)
+        (let* ((plain #"init-keys determinism payload")
+               (`#(ok ,wire) (itb3-lfe:encrypt-message p1 plain))
+               (`#(ok ,back) (itb3-lfe:decrypt-message p2 wire)))
+          (is-equal plain back))
+        (is-equal 'ok (itb3-lfe:free p2))
+        (is-equal 'ok (itb3-lfe:free p1))
+        (let* ((dup (cons (car masters) (cons (car masters) (cddr masters))))
+               (`#(error #(bad_input ,_))
+                 (itb3-lfe:init-keys #"singlemsg-triple-mac-v1" dup)))
+          'ok)
+        (let* ((short (cons #b(1 2 3 4 5 6 7 8) (cdr masters)))
+               (`#(error #(bad_input ,_))
+                 (itb3-lfe:init-keys #"singlemsg-triple-mac-v1" short)))
+          'ok)))))
+
 ;;; ------------------------------------------------------------------
 ;;; Incremental stream pump round trip (Streaming Non-AEAD profile)
 ;;; ------------------------------------------------------------------

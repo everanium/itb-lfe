@@ -39,6 +39,7 @@
   (export
     ;; Pipeline lifecycle
     (init 1) (init 2)
+    (init-keys 2) (init-keys 3)
     (load 1) (load 3)
     (load-f 1) (load-f 3)
     (save 1)
@@ -92,6 +93,18 @@
   binding performs no validation — Go rejects unknown keys and bad
   values with a diagnostic in the error detail)."
   (itb3:init profile opts))
+
+(defun init-keys (profile masters)
+  "As init-keys/3 with pure profile defaults."
+  (itb3:init_keys profile (map) masters))
+
+(defun init-keys (profile opts masters)
+  "Deterministically constructs a Pipeline from eight caller-supplied
+  master keys (one per canonical seed slot 0..7) against the named
+  profile and options. The eight master keys must come from
+  independent entropy or key-agreement sources; never derive all
+  eight keys from a single secret or a single KDF parent key."
+  (itb3:init_keys profile opts masters))
 
 (defun load (blob)
   "Reconstructs a Pipeline from a blob produced by save/1 or rekey/3,
@@ -257,7 +270,7 @@
 ;;; ------------------------------------------------------------------
 
 (defun version ()
-  "The libitb3 library version string (e.g. #\"0.7.2\")."
+  "The libitb3 library version string (e.g. #\"0.7.3\")."
   (itb3:version))
 
 (defun drbg-auto-tier ()

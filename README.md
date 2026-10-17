@@ -15,7 +15,7 @@ committed `_checkouts/libitb3` symlink). Every hash-name / MAC-name /
 cipher-name / profile-name is an opaque string passed through to Go
 for validation; the binding carries no ITB construction logic.
 
-The public surface is the `itb3-lfe` module (`init` / `load` /
+The public surface is the `itb3-lfe` module (`init` / `init-keys` / `load` /
 `load-f` / `save` / `save-f` / `rekey` / `max-workers` / `free`,
 Single Message encrypt / decrypt, one-shot and incremental stream sessions
 with `stream-write` / `stream-end` / `stream-read`), the profile
@@ -104,6 +104,8 @@ into the blob, so the receiver loads it with no opts of its own:
        (`#(ok ,receiver) (itb3-lfe:load blob)))
   ...)
 ```
+
+`init-keys` constructs a `Pipeline` deterministically from eight caller-supplied master keys (one per seed slot `0..7`) via per-slot KDF, so two peers holding the same eight master keys derive identical `Pipeline` instances without exchanging a session blob. The eight master keys must come from independent entropy or key-agreement sources — never derive all eight keys from a single secret or a single KDF parent key.
 
 `rekey/3` rotates the parallax + wrapper masters mid-session (the
 eight ITB seeds and MAC key are fixed for the session lifetime by
