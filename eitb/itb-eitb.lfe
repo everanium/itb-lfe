@@ -25,7 +25,7 @@
 (defmodule itb-eitb
   (export (main 1)))
 
-(defmacro EITB-LFE-VERSION () "0.7.3")
+(defmacro EITB-LFE-VERSION () "0.7.4")
 
 (defun main (args)
   (erlang:halt (dispatch args)))
