@@ -587,3 +587,35 @@
       (is-equal 1 (maps:get #"container_mode" rec1))
       (is-equal 2 (maps:get #"container_mode" rec2)))))
 
+;;; ------------------------------------------------------------------
+;;; Interlock width option
+;;; ------------------------------------------------------------------
+
+(deftest interlock-168-opts
+  (let* ((`#(ok ,sender) (itb3-lfe:init #"singlemsg-triple-mac-v1"
+                                        (map #"interlock" #"168")))
+         (`#(ok ,blob) (itb3-lfe:save sender))
+         (`#(ok ,receiver) (itb3-lfe:load blob))
+         (plain #"interlock 168 round-trip payload")
+         (`#(ok ,wire) (itb3-lfe:encrypt-message sender plain))
+         (`#(ok ,record) (itb3-lfe:inspect blob)))
+    (is-equal `#(ok ,plain) (itb3-lfe:decrypt-message receiver wire))
+    (is-equal #"168" (maps:get #"interlock" record))
+    (is-equal 'ok (itb3-lfe:free receiver))
+    (is-equal 'ok (itb3-lfe:free sender)))
+  (let* ((`#(ok ,def-pipe) (itb3-lfe:init #"singlemsg-triple-mac-v1"
+                                          (map #"interlock" #"48")))
+         (`#(ok ,def-blob) (itb3-lfe:save def-pipe))
+         (`#(ok ,def-record) (itb3-lfe:inspect def-blob)))
+    (is-equal 'ok (itb3-lfe:free def-pipe))
+    (is (not (maps:is_key #"interlock" def-record))))
+  (let ((`#(error #(bad_input ,_))
+          (itb3-lfe:init #"singlemsg-triple-mac-v1"
+                         (map #"innerHash" #"blake3" #"interlock" #"168"))))
+    'ok)
+  (let ((`#(error #(bad_input ,_))
+          (itb3-lfe:init #"singlemsg-triple-mac-v1"
+                         (map #"interlock" #"96"))))
+    'ok))
+
+

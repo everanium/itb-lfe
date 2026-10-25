@@ -189,6 +189,7 @@
     ",\"blob_mode\":" (i (maps:get 'blob-mode cfg))
     ",\"drbg\":" (jstr (maps:get 'drbg cfg))
     ",\"drbg_auto_tier\":" (jstr (drbg-auto-tier))
+    ",\"interlock\":" (jstr (maps:get 'interlock cfg))
     ",\"chunk_size_bytes\":" (i (maps:get 'chunk-size cfg))
     ",\"barrier_fill\":" (i (maps:get 'barrier-fill cfg))
     ",\"parallax\":" (jstr (loop-main:on-off (maps:get 'parallax cfg)))

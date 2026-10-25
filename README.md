@@ -93,12 +93,13 @@ directory, so no `LD_LIBRARY_PATH` is needed at runtime.
 ```
 
 Opts override the profile default at `init/2` (container floor
-sizing mode, chunk size, outer cipher, parallax on/off, wrapper on/off,
-MAC name, palette, worker cap) as a map. The resolved shape is written
-into the blob, so the receiver loads it with no opts of its own:
+sizing mode, interlock width `"48"` | `"168"`, chunk size, outer
+cipher, parallax on/off, wrapper on/off, MAC name, palette, worker
+cap) as a map. The resolved shape is written into the blob, so the
+receiver loads it with no opts of its own:
 
 ```lisp
-(let* ((opts (map #"mode" 2 #"chunkSize" 65536 #"withWrapper" 'false))
+(let* ((opts (map #"mode" 2 #"interlock" #"168" #"chunkSize" 65536 #"withWrapper" 'false))
        (`#(ok ,sender) (itb3-lfe:init #"singlemsg-triple-mac-v1" opts))
        (`#(ok ,blob) (itb3-lfe:save sender))
        (`#(ok ,receiver) (itb3-lfe:load blob)))
