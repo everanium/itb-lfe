@@ -148,7 +148,7 @@
    (tuple "blob-cycle-every" "int" 'int64
      "reopen each pipeline from its session blob every N iterations per worker; 0 = never")
    (tuple "blob-mode" "int" 'int
-     "container floor sizing mode: 1 (per-region, default) | 2 (per-container)")
+     "container floor sizing mode: 1 (per-region, default) | 2 (per-container) | 3 (gauss-posit)")
    (tuple "chunk-size" "string" 'string
      "streaming chunk-size budget (e.g. 4MB); 0 = profile default; inert for pure message shape")
    (tuple "drbg" "string" 'string
@@ -434,9 +434,9 @@
 
 (defun resolve-blob-mode (v cfg)
   (let ((m (maps:get "blob-mode" v)))
-    (if (lists:member m '(1 2))
+    (if (lists:member m '(1 2 3))
       (resolve-barrier-fill v (maps:put 'blob-mode m cfg))
-      (progn (err "--blob-mode must be 1 (per-region) | 2 (per-container), got ~B" (list m))
+      (progn (err "--blob-mode must be 1 (per-region) | 2 (per-container) | 3 (gauss-posit), got ~B" (list m))
              'error))))
 
 (defun resolve-barrier-fill (v cfg)
@@ -607,7 +607,10 @@
                 (record-int record #"chunk") (record-str record #"mac")
                 (on-off (record-bool record #"parallax"))
                 (on-off (record-bool record #"wrapper"))
-                (if (=:= (record-int record #"container_mode") 2) " container-mode=2" "")
+                (let ((cm (record-int record #"container_mode")))
+                  (if (orelse (=:= cm 2) (=:= cm 3))
+                    (++ " container-mode=" (integer_to_list cm))
+                    ""))
                 (case (record-str record #"drbg")
                   ("-" "")
                   (drbg (++ " drbg=" drbg)))

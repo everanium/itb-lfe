@@ -578,14 +578,19 @@
 (deftest container-mode-opts
   (let* ((`#(ok ,p1) (itb3-lfe:init #"singlemsg-triple-mac-v1" (map #"mode" 1)))
          (`#(ok ,p2) (itb3-lfe:init #"singlemsg-triple-mac-v1" (map #"mode" 2)))
+         (`#(ok ,p3) (itb3-lfe:init #"singlemsg-triple-mac-v1" (map #"mode" 3)))
          (`#(ok ,b1) (itb3-lfe:save p1))
-         (`#(ok ,b2) (itb3-lfe:save p2)))
+         (`#(ok ,b2) (itb3-lfe:save p2))
+         (`#(ok ,b3) (itb3-lfe:save p3)))
     (is-equal 'ok (itb3-lfe:free p1))
     (is-equal 'ok (itb3-lfe:free p2))
+    (is-equal 'ok (itb3-lfe:free p3))
     (let ((`#(ok ,rec1) (itb3-lfe:inspect b1))
-          (`#(ok ,rec2) (itb3-lfe:inspect b2)))
+          (`#(ok ,rec2) (itb3-lfe:inspect b2))
+          (`#(ok ,rec3) (itb3-lfe:inspect b3)))
       (is-equal 1 (maps:get #"container_mode" rec1))
-      (is-equal 2 (maps:get #"container_mode" rec2)))))
+      (is-equal 2 (maps:get #"container_mode" rec2))
+      (is-equal 3 (maps:get #"container_mode" rec3)))))
 
 ;;; ------------------------------------------------------------------
 ;;; Interlock width option
